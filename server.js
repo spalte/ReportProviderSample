@@ -39,19 +39,23 @@ var app = http.createServer(function(req,res){
         const studyInstanceUID = query['studyUID'];
         const clientID = query['client_id'];
 
-        const kheopsConfig = JSON.parse(syncRequest('GET', conf_uri).getBody())
+        const configURL = url.parse(conf_uri);
 
         console.log("code:" + code);
         console.log("conf_uri:" + conf_uri);
         console.log("studyInstanceUID:" + studyInstanceUID);
         console.log("clientID:" + clientID);
 
+        const kheopsConfig = JSON.parse(syncRequest('GET', conf_uri).getBody())
+
+        console.log('kheopsConfig:\n' + JSON.stringify(kheopsConfig, null, 4));
+
         const clientJWT = jwt.sign({
         }, pem, {
             algorithm: 'RS256',
             issuer: `http://${myIP}`,
             subject: clientID,
-            audience: kheopsConfig.issuer,
+            audience: `${configURL.protocol}//${configURL.host}`,
             jwtid: Math.floor(Math.random() * 1000000000).toString(),
             keyid: '0',
             expiresIn: 120,
@@ -108,7 +112,7 @@ var app = http.createServer(function(req,res){
 
         let object = {
             jwks_uri: `http://${myIP}/cert`,
-            token_endpoint_auth_method: 'private_key_jwt',
+            token_endpoint_auth_method: 'kheops_private_key_jwt',
             token_endpoint_auth_signing_alg: 'RS256',
             redirect_uri: `http://${myIP}/report`,
         }
