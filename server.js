@@ -6,7 +6,7 @@ const pem2jwk = require('pem-jwk').pem2jwk;
 const request = require('request');
 const jwt = require('jsonwebtoken');
 
-const myIP = '129.194.108.187'
+const myIP = '172.20.10.2'
 const listenPort = 80
 
 var app = http.createServer(function(req,res){
@@ -34,7 +34,28 @@ var app = http.createServer(function(req,res){
         console.log("report");
 
         const query = requestURL.query;
+
         const code = query['code'];
+
+        if (!code) {
+            const implicitHTML = 
+            `
+            <!doctype html>
+            <html>
+              <head>
+                <title>This is the title of the webpage!</title>
+              </head>
+              <body>
+                <p>Web Page with implicit flow</p>
+              </body>
+            </html>
+            `;
+
+            res.setHeader('Content-Type', 'text/html');
+            res.end(implicitHTML);        
+            return;
+        }
+
         const conf_uri = query['conf_uri'];
         const studyInstanceUID = query['studyUID'];
         const clientID = query['client_id'];
@@ -53,7 +74,7 @@ var app = http.createServer(function(req,res){
         const clientJWT = jwt.sign({
         }, pem, {
             algorithm: 'RS256',
-            issuer: `http://${myIP}`,
+            issuer: clientID,
             subject: clientID,
             audience: `${configURL.protocol}//${configURL.host}`,
             jwtid: Math.floor(Math.random() * 1000000000).toString(),
@@ -70,8 +91,14 @@ var app = http.createServer(function(req,res){
                 client_id: clientID,
                 client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
                 client_assertion: clientJWT,
+                redirect_uri: `http://${myIP}/report`,
             }},
             function(err, httpResponse, body) {
+                if (err) {
+                    res.setHeader('Content-Type', 'text/plain');
+                    res.end("error");            
+                }
+
                 const tokenResponse = JSON.parse(body);
 
                 console.log('response:\n' + JSON.stringify(tokenResponse, null, 4));
@@ -112,9 +139,10 @@ var app = http.createServer(function(req,res){
 
         let object = {
             jwks_uri: `http://${myIP}/cert`,
-            token_endpoint_auth_method: 'kheops_private_key_jwt',
+            token_endpoint_auth_method: 'private_key_jwt',
             token_endpoint_auth_signing_alg: 'RS256',
             redirect_uri: `http://${myIP}/report`,
+            response_type: 'code',
         }
 
         res.setHeader('Content-Type', 'application/json');
