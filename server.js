@@ -6,8 +6,19 @@ const pem2jwk = require('pem-jwk').pem2jwk;
 const request = require('request');
 const jwt = require('jsonwebtoken');
 
-const myIP = '172.20.10.2'
+const myIP = '192.168.1.157'
 const listenPort = 80
+
+let instrospect = function(token, endpoint) {
+  request.post(endpoint, {
+    form: {
+        token: token
+    }},
+    function(err, httpResponse, body) {
+      const introspection = JSON.parse(body);
+      console.log('introspection:\n' + JSON.stringify(introspection, null, 4));
+    });
+}
 
 var app = http.createServer(function(req,res){
     const pem = fs.readFileSync('./key.pem', 'ascii')
@@ -38,6 +49,9 @@ var app = http.createServer(function(req,res){
         const code = query['code'];
 
         if (!code) {
+
+          // instrospect(tokenResponse.access_token, kheopsConfig.instrospection_endpoint);
+
             const implicitHTML = 
             `
             <!doctype html>
@@ -59,6 +73,7 @@ var app = http.createServer(function(req,res){
         const conf_uri = query['conf_uri'];
         const studyInstanceUID = query['studyUID'];
         const clientID = query['client_id'];
+        const returnURI = query['return_uri'];
 
         const configURL = url.parse(conf_uri);
 
@@ -66,6 +81,7 @@ var app = http.createServer(function(req,res){
         console.log("conf_uri:" + conf_uri);
         console.log("studyInstanceUID:" + studyInstanceUID);
         console.log("clientID:" + clientID);
+        console.log("returnURI:" + returnURI);
 
         const kheopsConfig = JSON.parse(syncRequest('GET', conf_uri).getBody())
 
@@ -76,7 +92,7 @@ var app = http.createServer(function(req,res){
             algorithm: 'RS256',
             issuer: clientID,
             subject: clientID,
-            audience: `${configURL.protocol}//${configURL.host}`,
+            audience: `${configURL.protocol}//${configURL.host}/api/token`,
             jwtid: Math.floor(Math.random() * 1000000000).toString(),
             keyid: '0',
             expiresIn: 120,
@@ -103,6 +119,8 @@ var app = http.createServer(function(req,res){
 
                 console.log('response:\n' + JSON.stringify(tokenResponse, null, 4));
 
+                instrospect(tokenResponse.access_token, kheopsConfig.introspection_endpoint);
+
                 const userInfo = JSON.parse(syncRequest('GET', kheopsConfig.userinfo_endpoint, {
                     'headers': {
                         'authorization': 'Bearer ' + tokenResponse.access_token
@@ -124,7 +142,7 @@ var app = http.createServer(function(req,res){
                   </head>
                   <body>
                     <p>User with email address ${userInfo.email} is accessing the study ${search[0]['00081030']['Value'][0]}</p>
-                    <p><a href="${kheopsConfig.return_uri}">return</a></p>
+                    <p><a href="${returnURI}">return</a></p>
                   </body>
                 </html>
                 `;
